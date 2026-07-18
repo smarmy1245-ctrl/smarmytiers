@@ -1,13 +1,11 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  Database,
-  Download,
   ImageUp,
   Layers,
   LogOut,
@@ -16,7 +14,6 @@ import {
   Tags,
   Trash2,
   Trophy,
-  Upload,
   Users,
 } from "lucide-react"
 import type { Player, TitleRow } from "@/lib/data"
@@ -33,8 +30,6 @@ import {
   deletePlayer,
   deleteTierlist,
   deleteTitle,
-  exportData,
-  importData,
   logoutAction,
   moveGamemode,
   removePlayerSkin,
@@ -220,10 +215,19 @@ function TierlistManager({ tierlists }: { tierlists: Tierlist[] }) {
 // ------- gamemodes -------
 
 function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tierlists: Tierlist[] }) {
+  // Point-based tier lists rank players by raw points, not per-gamemode tiers,
+  // so gamemodes only apply to "tiers" mode lists.
+  const tierModeLists = tierlists.filter((tl) => tl.mode === "tiers")
   return (
     <SectionCard title="Gamemodes" description="Add gamemodes and assign each one to a tier list." icon={Trophy}>
+      {tierModeLists.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Gamemodes only apply to tier-based lists. Create a tier-based list to add gamemodes.
+        </p>
+      ) : (
+        <>
       <div className="mb-4 flex flex-col gap-4">
-        {tierlists.map((tl) => {
+        {tierModeLists.map((tl) => {
           const listGamemodes = gamemodes.filter((gm) => gm.tierlistId === tl.id)
           return (
             <div key={tl.id} className="flex flex-col gap-2">
@@ -264,7 +268,7 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
                         </button>
                       </form>
 
-                      {tierlists.length > 1 && (
+                      {tierModeLists.length > 1 && (
                         <form action={moveGamemode} className="flex items-center gap-2">
                           <input type="hidden" name="id" value={gm.id} />
                           <select
@@ -273,7 +277,7 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
                             className="min-h-9 cursor-pointer rounded-md border border-border bg-background px-2 text-sm text-foreground"
                             aria-label={`${gm.label} tier list`}
                           >
-                            {tierlists.map((opt) => (
+                            {tierModeLists.map((opt) => (
                               <option key={opt.id} value={opt.id}>
                                 {opt.label}
                               </option>
@@ -319,11 +323,11 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
         />
         <select
           name="tierlistId"
-          defaultValue={tierlists[0]?.id}
+          defaultValue={tierModeLists[0]?.id}
           className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-3 text-base text-foreground"
           aria-label="New gamemode tier list"
         >
-          {tierlists.map((tl) => (
+          {tierModeLists.map((tl) => (
             <option key={tl.id} value={tl.id}>
               {tl.label}
             </option>
@@ -349,6 +353,8 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
           Add
         </button>
       </form>
+        </>
+      )}
     </SectionCard>
   )
 }
@@ -750,101 +756,6 @@ function PlayerManager({
   )
 }
 
-// ------- import / export -------
-
-function DataManager() {
-  const [state, formAction, pending] = useActionState(importData, {
-    error: null as string | null,
-    ok: false,
-  })
-  const [exported, setExported] = useState<string>("")
-  const [exporting, setExporting] = useState(false)
-
-  async function handleExport() {
-    setExporting(true)
-    try {
-      const json = await exportData()
-      setExported(json)
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  function handleDownload() {
-    const blob = new Blob([exported], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `smarmy-tiers-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <SectionCard
-        title="Export data"
-        description="Download or copy a full JSON snapshot of every tier list, gamemode, title and player."
-        icon={Download}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" />
-            {exporting ? "Generating..." : "Generate export"}
-          </button>
-          {exported && (
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-4 font-bold text-foreground hover:border-primary"
-            >
-              Download .json
-            </button>
-          )}
-        </div>
-        {exported && (
-          <textarea
-            readOnly
-            value={exported}
-            onFocus={(e) => e.currentTarget.select()}
-            className="mt-3 h-48 w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-primary"
-          />
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="Import data"
-        description="Paste a JSON export (from this app or copied out of the Neon SQL console) and import it. Rows are matched by slug / username, so re-running is safe."
-        icon={Upload}
-      >
-        <form action={formAction} className="flex flex-col gap-3">
-          <textarea
-            name="json"
-            required
-            placeholder='{ "tierlists": [...], "gamemodes": [...], "titles": [...], "players": [...] }'
-            className="h-48 w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-primary"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-60"
-          >
-            <Upload className="h-4 w-4" />
-            {pending ? "Importing..." : "Import JSON"}
-          </button>
-          {state?.error && <p className="text-sm font-semibold text-primary">{state.error}</p>}
-          {state?.ok && <p className="text-sm font-semibold text-emerald-400">Import complete.</p>}
-        </form>
-      </SectionCard>
-    </div>
-  )
-}
-
 // ------- shell -------
 
 type SectionKey = "players" | "tierlists" | "gamemodes" | "titles" | "theme"
@@ -875,7 +786,7 @@ export function AdminPanel({
   return (
     <main className="mx-auto max-w-2xl px-4 py-6 lg:max-w-6xl lg:px-8 lg:py-8">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold font-display text-foreground">Smarmy&apos;s Admin</h1>
+        <h1 className="text-2xl font-bold font-display text-foreground">Admin Panel</h1>
         <div className="flex items-center gap-2">
           <Link
             href="/"
