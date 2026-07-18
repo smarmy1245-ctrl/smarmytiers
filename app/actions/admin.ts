@@ -302,11 +302,20 @@ export async function createTitle(formData: FormData) {
   const min = Number(formData.get("min"))
   const color = normalizeHex(String(formData.get("color") ?? "")) ?? "#fca5a5"
   if (!name || Number.isNaN(min)) return
-  await query(`INSERT INTO titles (name, min_points, class_name, color) VALUES ($1, $2, 'text-red-300', $3)`, [
-    name,
-    min,
-    color,
-  ])
+
+  // Titles are scoped to a tier list. Fall back to the first list if the
+  // submitted id is missing or invalid.
+  let tierlistId = Number(formData.get("tierlistId"))
+  if (!tierlistId || !(await tierlistExists(tierlistId))) {
+    const fallback = await defaultTierlistId()
+    if (!fallback) return
+    tierlistId = fallback
+  }
+
+  await query(
+    `INSERT INTO titles (name, min_points, class_name, color, tierlist_id) VALUES ($1, $2, 'text-red-300', $3, $4)`,
+    [name, min, color, tierlistId],
+  )
   revalidatePath("/admin")
   revalidatePath("/")
 }

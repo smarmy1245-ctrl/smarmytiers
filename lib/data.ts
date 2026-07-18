@@ -21,11 +21,15 @@ export async function getTierlists(): Promise<Tierlist[]> {
   }))
 }
 
-// Map of gamemode slug -> owning tier list mode. Used to know whether a stored
-// player_tier row is a HT/LT tier or a raw points value.
+// Map of stored player_tier "gamemode" key -> owning tier list mode. Used to
+// know whether a stored player_tier row is a HT/LT tier or a raw points value.
+// Tier-mode rows are keyed by a gamemode slug; points-mode rows are keyed by
+// the owning tier list's own slug (points lists have no gamemodes).
 async function gamemodeModeMap(): Promise<Map<string, TierlistMode>> {
   const rows = await query<{ slug: string; mode: string | null }>(
-    `SELECT g.slug, t.mode FROM gamemodes g LEFT JOIN tierlists t ON t.id = g.tierlist_id`,
+    `SELECT g.slug, t.mode FROM gamemodes g LEFT JOIN tierlists t ON t.id = g.tierlist_id
+     UNION
+     SELECT slug, mode FROM tierlists WHERE mode = 'points'`,
   )
   const m = new Map<string, TierlistMode>()
   for (const r of rows) m.set(r.slug, r.mode === "points" ? "points" : "tiers")
@@ -159,9 +163,11 @@ export type TitleRow = {
   min: number
   className: string
   color: string
+  tierlistId: number | null
 }
 
-// All configured titles, highest threshold first.
+// All configured titles, highest threshold first. Each title is scoped to a
+// single tier list via `tierlistId`.
 export async function getTitles(): Promise<TitleRow[]> {
   await ensureSchema()
   const rows = await query<{
@@ -170,13 +176,15 @@ export async function getTitles(): Promise<TitleRow[]> {
     min_points: number
     class_name: string
     color: string | null
-  }>(`SELECT id, name, min_points, class_name, color FROM titles ORDER BY min_points DESC`)
+    tierlist_id: number | null
+  }>(`SELECT id, name, min_points, class_name, color, tierlist_id FROM titles ORDER BY min_points DESC`)
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
     min: r.min_points,
     className: r.class_name,
     color: resolveTitleColor(r.color, r.class_name),
+    tierlistId: r.tierlist_id,
   }))
 }
 

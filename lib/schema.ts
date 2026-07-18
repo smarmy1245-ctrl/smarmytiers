@@ -81,6 +81,9 @@ async function migrate(): Promise<void> {
   `)
   // color column holds a hex value chosen from the color wheel.
   await query(`ALTER TABLE titles ADD COLUMN IF NOT EXISTS color TEXT`)
+  // tierlist_id scopes a title to a single tier list — titles are editable and
+  // resolved independently per tier list (NULL = legacy/global, backfilled below).
+  await query(`ALTER TABLE titles ADD COLUMN IF NOT EXISTS tierlist_id INTEGER`)
 
   // Key/value store for theme + tier colors.
   await query(`
@@ -130,9 +133,9 @@ async function seed(): Promise<void> {
     }
   }
 
-  // Seed default titles if none exist.
+  // Seed default titles if none exist. Titles belong to the main tier list.
   const titleCount = await query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM titles`)
-  if ((titleCount[0]?.n ?? 0) === 0) {
+  if ((titleCount[0]?.n ?? 0) === 0 && mainId) {
     const titles: [string, number, string, string][] = [
       ["SMARMY'S GRANDMASTER", 400, "text-amber-400", "#fbbf24"],
       ["SMARMY'S MASTER", 250, "text-orange-400", "#fb923c"],
@@ -143,13 +146,16 @@ async function seed(): Promise<void> {
     ]
     let i = 0
     for (const [name, min, cls, color] of titles) {
-      await query(`INSERT INTO titles (name, min_points, class_name, color, sort_order) VALUES ($1, $2, $3, $4, $5)`, [
-        name,
-        min,
-        cls,
-        color,
-        i++,
-      ])
+      await query(
+        `INSERT INTO titles (name, min_points, class_name, color, sort_order, tierlist_id) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [name, min, cls, color, i++, mainId],
+      )
     }
+  }
+
+  // Backfill any legacy titles that predate per-tier-list scoping onto the
+  // first tier list so they still resolve somewhere.
+  if (mainId) {
+    await query(`UPDATE titles SET tierlist_id = $1 WHERE tierlist_id IS NULL`, [mainId])
   }
 }

@@ -1,22 +1,18 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  Database,
-  Download,
   ImageUp,
   Layers,
   LogOut,
   Palette,
   Plus,
   Tags,
-  Trash2,
   Trophy,
-  Upload,
   Users,
 } from "lucide-react"
 import type { Player, TitleRow } from "@/lib/data"
@@ -33,8 +29,6 @@ import {
   deletePlayer,
   deleteTierlist,
   deleteTitle,
-  exportData,
-  importData,
   logoutAction,
   moveGamemode,
   removePlayerSkin,
@@ -220,10 +214,16 @@ function TierlistManager({ tierlists }: { tierlists: Tierlist[] }) {
 // ------- gamemodes -------
 
 function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tierlists: Tierlist[] }) {
+  // Points lists have no gamemodes — only tier-mode lists can own them.
+  const tierModeLists = tierlists.filter((tl) => tl.mode !== "points")
   return (
-    <SectionCard title="Gamemodes" description="Add gamemodes and assign each one to a tier list." icon={Trophy}>
+    <SectionCard
+      title="Gamemodes"
+      description="Add gamemodes and assign each one to a tier list. Points-based tier lists don't use gamemodes."
+      icon={Trophy}
+    >
       <div className="mb-4 flex flex-col gap-4">
-        {tierlists.map((tl) => {
+        {tierModeLists.map((tl) => {
           const listGamemodes = gamemodes.filter((gm) => gm.tierlistId === tl.id)
           return (
             <div key={tl.id} className="flex flex-col gap-2">
@@ -264,7 +264,7 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
                         </button>
                       </form>
 
-                      {tierlists.length > 1 && (
+                      {tierModeLists.length > 1 && (
                         <form action={moveGamemode} className="flex items-center gap-2">
                           <input type="hidden" name="id" value={gm.id} />
                           <select
@@ -273,7 +273,7 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
                             className="min-h-9 cursor-pointer rounded-md border border-border bg-background px-2 text-sm text-foreground"
                             aria-label={`${gm.label} tier list`}
                           >
-                            {tierlists.map((opt) => (
+                            {tierModeLists.map((opt) => (
                               <option key={opt.id} value={opt.id}>
                                 {opt.label}
                               </option>
@@ -319,11 +319,11 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
         />
         <select
           name="tierlistId"
-          defaultValue={tierlists[0]?.id}
+          defaultValue={tierModeLists[0]?.id}
           className="min-h-11 cursor-pointer rounded-lg border border-border bg-background px-3 text-base text-foreground"
           aria-label="New gamemode tier list"
         >
-          {tierlists.map((tl) => (
+          {tierModeLists.map((tl) => (
             <option key={tl.id} value={tl.id}>
               {tl.label}
             </option>
@@ -355,89 +355,106 @@ function GamemodeManager({ gamemodes, tierlists }: { gamemodes: Gamemode[]; tier
 
 // ------- titles -------
 
-function TitleManager({ titles }: { titles: TitleRow[] }) {
+function TitleManager({ titles, tierlists }: { titles: TitleRow[]; tierlists: Tierlist[] }) {
   return (
     <SectionCard
       title="Titles"
-      description="Rename ranks (e.g. Grandmaster), set the point threshold, and pick any color from the wheel."
+      description="Each tier list has its own titles. Rename ranks (e.g. Grandmaster), set the point threshold, and pick any color from the wheel — per tier list."
       icon={Tags}
     >
-      <ul className="mb-4 flex flex-col gap-2">
-        {titles.map((t) => (
-          <li key={t.id} className="rounded-lg border border-border bg-background p-3">
-            <form action={updateTitle} className="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="id" value={t.id} />
-              <label className="flex flex-1 flex-col gap-1">
-                <span className="text-xs font-semibold text-muted-foreground">Title</span>
-                <input
-                  name="name"
-                  defaultValue={t.name}
-                  required
-                  style={{ color: t.color }}
-                  className="min-h-10 w-full rounded-md border border-border bg-card px-2 text-base font-bold outline-none focus:border-primary"
-                />
-              </label>
-              <label className="flex w-24 flex-col gap-1">
-                <span className="text-xs font-semibold text-muted-foreground">Min pts</span>
-                <input
-                  name="min"
-                  type="number"
-                  defaultValue={t.min}
-                  required
-                  className="min-h-10 w-full rounded-md border border-border bg-card px-2 text-base text-foreground outline-none focus:border-primary"
-                />
-              </label>
-              <ColorField name="color" label="Color" defaultValue={t.color} />
-              <button
-                type="submit"
-                className="min-h-10 cursor-pointer rounded-md bg-primary px-3 text-sm font-bold text-primary-foreground"
-              >
-                Save
-              </button>
-            </form>
-            <form action={deleteTitle} className="mt-2">
-              <input type="hidden" name="id" value={t.id} />
-              <button
-                type="submit"
-                className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary"
-              >
-                Delete title
-              </button>
-            </form>
-          </li>
-        ))}
-        {titles.length === 0 && <li className="text-sm text-muted-foreground">No titles yet.</li>}
-      </ul>
+      <div className="flex flex-col gap-6">
+        {tierlists.map((tl) => {
+          const listTitles = titles.filter((t) => t.tierlistId === tl.id)
+          return (
+            <div key={tl.id} className="flex flex-col gap-2">
+              <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-primary">
+                <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                {tl.label}
+              </p>
 
-      <form action={createTitle} className="flex flex-wrap items-end gap-2 border-t border-border pt-4">
-        <label className="flex flex-1 flex-col gap-1">
-          <span className="text-xs font-semibold text-muted-foreground">New title</span>
-          <input
-            name="name"
-            placeholder="e.g. SMARMY'S LEGEND"
-            required
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none focus:border-primary"
-          />
-        </label>
-        <label className="flex w-24 flex-col gap-1">
-          <span className="text-xs font-semibold text-muted-foreground">Min pts</span>
-          <input
-            name="min"
-            type="number"
-            defaultValue={0}
-            required
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none focus:border-primary"
-          />
-        </label>
-        <ColorField name="color" label="Color" defaultValue="#fca5a5" />
-        <button
-          type="submit"
-          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 font-bold text-primary-foreground"
-        >
-          <Plus className="h-4 w-4" />
-          Add
-        </button>
-      </form>
+              <ul className="flex flex-col gap-2">
+                {listTitles.map((t) => (
+                  <li key={t.id} className="rounded-lg border border-border bg-background p-3">
+                    <form action={updateTitle} className="flex flex-wrap items-end gap-2">
+                      <input type="hidden" name="id" value={t.id} />
+                      <label className="flex flex-1 flex-col gap-1">
+                        <span className="text-xs font-semibold text-muted-foreground">Title</span>
+                        <input
+                          name="name"
+                          defaultValue={t.name}
+                          required
+                          style={{ color: t.color }}
+                          className="min-h-10 w-full rounded-md border border-border bg-card px-2 text-base font-bold outline-none focus:border-primary"
+                        />
+                      </label>
+                      <label className="flex w-24 flex-col gap-1">
+                        <span className="text-xs font-semibold text-muted-foreground">Min pts</span>
+                        <input
+                          name="min"
+                          type="number"
+                          defaultValue={t.min}
+                          required
+                          className="min-h-10 w-full rounded-md border border-border bg-card px-2 text-base text-foreground outline-none focus:border-primary"
+                        />
+                      </label>
+                      <ColorField name="color" label="Color" defaultValue={t.color} />
+                      <button
+                        type="submit"
+                        className="min-h-10 cursor-pointer rounded-md bg-primary px-3 text-sm font-bold text-primary-foreground"
+                      >
+                        Save
+                      </button>
+                    </form>
+                    <form action={deleteTitle} className="mt-2">
+                      <input type="hidden" name="id" value={t.id} />
+                      <button
+                        type="submit"
+                        className="cursor-pointer text-xs font-semibold text-muted-foreground hover:text-primary"
+                      >
+                        Delete title
+                      </button>
+                    </form>
+                  </li>
+                ))}
+                {listTitles.length === 0 && (
+                  <li className="text-sm text-muted-foreground">No titles for this list yet.</li>
+                )}
+              </ul>
+
+              <form action={createTitle} className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
+                <input type="hidden" name="tierlistId" value={tl.id} />
+                <label className="flex flex-1 flex-col gap-1">
+                  <span className="text-xs font-semibold text-muted-foreground">New title</span>
+                  <input
+                    name="name"
+                    placeholder="e.g. SMARMY'S LEGEND"
+                    required
+                    className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none focus:border-primary"
+                  />
+                </label>
+                <label className="flex w-24 flex-col gap-1">
+                  <span className="text-xs font-semibold text-muted-foreground">Min pts</span>
+                  <input
+                    name="min"
+                    type="number"
+                    defaultValue={0}
+                    required
+                    className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none focus:border-primary"
+                  />
+                </label>
+                <ColorField name="color" label="Color" defaultValue="#fca5a5" />
+                <button
+                  type="submit"
+                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 font-bold text-primary-foreground"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add
+                </button>
+              </form>
+            </div>
+          )
+        })}
+      </div>
     </SectionCard>
   )
 }
@@ -456,9 +473,11 @@ function TierEditor({
   return (
     <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3">
       {tierlists.map((tl) => {
-        const listGamemodes = gamemodes.filter((gm) => gm.tierlistId === tl.id)
-        if (listGamemodes.length === 0) return null
         const isPoints = tl.mode === "points"
+        const listGamemodes = gamemodes.filter((gm) => gm.tierlistId === tl.id)
+        // Tier-mode lists with no gamemodes have nothing to edit.
+        if (!isPoints && listGamemodes.length === 0) return null
+
         return (
           <div key={tl.id} className="flex flex-col gap-2">
             <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-primary">
@@ -466,22 +485,23 @@ function TierEditor({
               {tl.label}
               <span className="font-normal text-muted-foreground">· {isPoints ? "points" : "tiers"}</span>
             </p>
-            {listGamemodes.map((gm) => {
-              const current = player.tiers.find((t) => t.gamemode === gm.slug)
-              return (
-                <div key={gm.id} className="flex flex-wrap items-center gap-2">
-                  <span className="w-24 text-sm font-semibold text-foreground">{gm.label}</span>
 
-                  {isPoints ? (
+            {isPoints ? (
+              // Points lists have no gamemodes — one points value per player.
+              (() => {
+                const current = player.tiers.find((t) => t.gamemode === tl.slug)
+                return (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="w-24 text-sm font-semibold text-foreground">Points</span>
                     <form action={setPoints} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="playerId" value={player.id} />
-                      <input type="hidden" name="gamemode" value={gm.slug} />
+                      <input type="hidden" name="tierlistId" value={tl.id} />
                       <input
                         name="points"
                         type="number"
                         defaultValue={current?.points ?? 0}
                         className="min-h-9 w-24 rounded-md border border-border bg-background px-2 text-sm text-foreground outline-none focus:border-primary"
-                        aria-label={`${gm.label} points`}
+                        aria-label={`${tl.label} points`}
                       />
                       <button
                         type="submit"
@@ -490,7 +510,34 @@ function TierEditor({
                         {current ? "Update" : "Set"}
                       </button>
                     </form>
-                  ) : (
+                    {current && (
+                      <>
+                        <span className="rounded border border-border bg-secondary px-2 py-1 font-mono text-xs text-foreground">
+                          {current.points} pts
+                        </span>
+                        <form action={removeTier}>
+                          <input type="hidden" name="playerId" value={player.id} />
+                          <input type="hidden" name="gamemode" value={tl.slug} />
+                          <button
+                            type="submit"
+                            aria-label={`Remove ${tl.label} points`}
+                            className="flex min-h-9 cursor-pointer items-center rounded-md border border-border px-2 text-muted-foreground hover:text-primary"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                )
+              })()
+            ) : (
+              listGamemodes.map((gm) => {
+                const current = player.tiers.find((t) => t.gamemode === gm.slug)
+                return (
+                  <div key={gm.id} className="flex flex-wrap items-center gap-2">
+                    <span className="w-24 text-sm font-semibold text-foreground">{gm.label}</span>
+
                     <form action={setTier} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="playerId" value={player.id} />
                       <input type="hidden" name="gamemode" value={gm.slug} />
@@ -522,31 +569,29 @@ function TierEditor({
                         {current ? "Update" : "Set"}
                       </button>
                     </form>
-                  )}
 
-                  {current && (
-                    <>
-                      <span className="rounded border border-border bg-secondary px-2 py-1 font-mono text-xs text-foreground">
-                        {isPoints
-                          ? `${current.points} pts`
-                          : `${tierLabel(current.tier, current.tierType)} · ${current.points} pts`}
-                      </span>
-                      <form action={removeTier}>
-                        <input type="hidden" name="playerId" value={player.id} />
-                        <input type="hidden" name="gamemode" value={gm.slug} />
-                        <button
-                          type="submit"
-                          aria-label={`Remove ${gm.label} entry`}
-                          className="flex min-h-9 cursor-pointer items-center rounded-md border border-border px-2 text-muted-foreground hover:text-primary"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </form>
-                    </>
-                  )}
-                </div>
-              )
-            })}
+                    {current && (
+                      <>
+                        <span className="rounded border border-border bg-secondary px-2 py-1 font-mono text-xs text-foreground">
+                          {`${tierLabel(current.tier, current.tierType)} · ${current.points} pts`}
+                        </span>
+                        <form action={removeTier}>
+                          <input type="hidden" name="playerId" value={player.id} />
+                          <input type="hidden" name="gamemode" value={gm.slug} />
+                          <button
+                            type="submit"
+                            aria-label={`Remove ${gm.label} entry`}
+                            className="flex min-h-9 cursor-pointer items-center rounded-md border border-border px-2 text-muted-foreground hover:text-primary"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                )
+              })
+            )}
           </div>
         )
       })}
@@ -750,101 +795,6 @@ function PlayerManager({
   )
 }
 
-// ------- import / export -------
-
-function DataManager() {
-  const [state, formAction, pending] = useActionState(importData, {
-    error: null as string | null,
-    ok: false,
-  })
-  const [exported, setExported] = useState<string>("")
-  const [exporting, setExporting] = useState(false)
-
-  async function handleExport() {
-    setExporting(true)
-    try {
-      const json = await exportData()
-      setExported(json)
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  function handleDownload() {
-    const blob = new Blob([exported], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `smarmy-tiers-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      <SectionCard
-        title="Export data"
-        description="Download or copy a full JSON snapshot of every tier list, gamemode, title and player."
-        icon={Download}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting}
-            className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-60"
-          >
-            <Download className="h-4 w-4" />
-            {exporting ? "Generating..." : "Generate export"}
-          </button>
-          {exported && (
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-4 font-bold text-foreground hover:border-primary"
-            >
-              Download .json
-            </button>
-          )}
-        </div>
-        {exported && (
-          <textarea
-            readOnly
-            value={exported}
-            onFocus={(e) => e.currentTarget.select()}
-            className="mt-3 h-48 w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-primary"
-          />
-        )}
-      </SectionCard>
-
-      <SectionCard
-        title="Import data"
-        description="Paste a JSON export (from this app or copied out of the Neon SQL console) and import it. Rows are matched by slug / username, so re-running is safe."
-        icon={Upload}
-      >
-        <form action={formAction} className="flex flex-col gap-3">
-          <textarea
-            name="json"
-            required
-            placeholder='{ "tierlists": [...], "gamemodes": [...], "titles": [...], "players": [...] }'
-            className="h-48 w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-xs text-foreground outline-none focus:border-primary"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 font-bold text-primary-foreground disabled:opacity-60"
-          >
-            <Upload className="h-4 w-4" />
-            {pending ? "Importing..." : "Import JSON"}
-          </button>
-          {state?.error && <p className="text-sm font-semibold text-primary">{state.error}</p>}
-          {state?.ok && <p className="text-sm font-semibold text-emerald-400">Import complete.</p>}
-        </form>
-      </SectionCard>
-    </div>
-  )
-}
-
 // ------- shell -------
 
 type SectionKey = "players" | "tierlists" | "gamemodes" | "titles" | "theme"
@@ -945,7 +895,7 @@ export function AdminPanel({
       )}
       {section === "tierlists" && <TierlistManager tierlists={tierlists} />}
       {section === "gamemodes" && <GamemodeManager gamemodes={gamemodes} tierlists={tierlists} />}
-      {section === "titles" && <TitleManager titles={titles} />}
+      {section === "titles" && <TitleManager titles={titles} tierlists={tierlists} />}
       {section === "theme" && <ThemeManager theme={theme} />}
     </main>
   )
